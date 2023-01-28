@@ -179,6 +179,7 @@ def set_aligned_params(new_params, existing_params, n_models, param_names=PARAM_
                     existing_params[param] = (existing_params[param],) * n_models + (
                         new_params[param],
                     )
+            new_params[param] = new_params[param][-2:]
 
     return existing_params
 
@@ -256,6 +257,7 @@ class AlignedUMAP(BaseEstimator):
         force_approximation_algorithm=False,
         verbose=False,
         unique=False,
+        max_stored = 2
     ):
 
         self.n_neighbors = n_neighbors
@@ -288,6 +290,8 @@ class AlignedUMAP(BaseEstimator):
         self.verbose = verbose
         self.unique = unique
 
+        self.max_stored = max_stored
+
         self.a = a
         self.b = b
 
@@ -298,6 +302,7 @@ class AlignedUMAP(BaseEstimator):
             )
 
         self.dict_relations_ = fit_params["relations"]
+        self.id_list = fit_params["id_list"]
         assert type(self.dict_relations_) in (list, tuple)
         assert type(X) in (list, tuple, np.ndarray)
         assert (len(X) - 1) == (len(self.dict_relations_))
@@ -448,6 +453,12 @@ class AlignedUMAP(BaseEstimator):
             )
 
         new_dict_relations = fit_params["relations"]
+        max_stored = fit_params.get("max_stored", self.max_stored)
+
+        new_id_points = fit_params.get("id_list")
+        assert type(new_id_points) in (list, tuple)
+        self.id_list += new_id_points
+
         X = check_array(X)
 
         self.__dict__ = set_aligned_params(fit_params, self.__dict__, self.n_models_)
@@ -474,11 +485,13 @@ class AlignedUMAP(BaseEstimator):
             transform_seed=self.transform_seed,
         ).fit(X, y)
 
-        self.n_models_ += 1
+        self.n_models_ = self.n_models_ + 1 if self.n_models_ < max_stored-1 else max_stored-1
         self.mappers_ += [new_mapper]
+        self.mappers_ = self.mappers_[-max_stored:]
 
         # TODO: We can likely make this more efficient and not recompute each time
         self.dict_relations_ += [invert_dict(new_dict_relations)]
+        self.dict_relations_ = self.dict_relations_[-(max_stored-1) if max_stored > 0 else 0:]
 
         if self.n_epochs is None:
             n_epochs = 200
@@ -517,6 +530,7 @@ class AlignedUMAP(BaseEstimator):
         )
 
         self.embeddings_.append(new_embedding)
+        self.embeddings_ = self.embeddings_[-max_stored:]
 
         rng_state_transform = np.random.RandomState(self.transform_seed)
         seed_triplet = rng_state_transform.randint(INT32_MIN, INT32_MAX, 3).astype(
