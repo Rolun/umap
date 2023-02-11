@@ -457,7 +457,7 @@ class AlignedUMAP(BaseEstimator):
 
         new_id_points = fit_params.get("id_list")
         assert type(new_id_points) in (list, tuple)
-        self.id_list += new_id_points
+        self.id_list = new_id_points
 
         X = check_array(X)
 
